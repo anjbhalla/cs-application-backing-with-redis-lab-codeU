@@ -67,22 +67,29 @@ public class JedisIndex {
 	 * @return Set of URLs.
 	 */
 	public Set<String> getURLs(String term) {
-        // FILL THIS IN!
-		return null;
+        	String URLSetKey = urlSetKey(term);
+		return jedis.smembers(URLSetKey);
 	}
 
-    /**
+    	/**
 	 * Looks up a term and returns a map from URL to count.
 	 * 
 	 * @param term
 	 * @return Map from URL to count.
 	 */
 	public Map<String, Integer> getCounts(String term) {
-        // FILL THIS IN!
-		return null;
+        	// FILL THIS IN!
+		Map<String, Integer> map = new HashMap<String, Integer>();
+
+		Set<String> urlSet = getURLs(term);
+		for (String url: urlSet) {
+			Integer termCount = getCount(url, term);
+			map.put(url, termCount);
+		}
+		return map;
 	}
 
-    /**
+    	/**
 	 * Returns the number of times the given term appears at the given URL.
 	 * 
 	 * @param url
@@ -90,10 +97,11 @@ public class JedisIndex {
 	 * @return
 	 */
 	public Integer getCount(String url, String term) {
-        // FILL THIS IN!
-		return null;
+        	String key = termCounterKey(url);
+		String countS = jedis.hget(key, term);
+		Integer countI = new Integer(countS);
+		return countI;
 	}
-
 
 	/**
 	 * Add a page to the index.
@@ -102,7 +110,24 @@ public class JedisIndex {
 	 * @param paragraphs  Collection of elements that should be indexed.
 	 */
 	public void indexPage(String url, Elements paragraphs) {
-        // FILL THIS IN!
+        	//FILL THIS IN!
+		// make a TermCounter and count the terms in the paragraphs
+                TermCounter tc = new TermCounter(url);
+                tc.processElements(paragraphs);
+
+                // for each term in the TermCounter, add the TermCounter to the index
+		// -> Needs to be added to the Redis/Jedis index
+		// Looping through would take a lot of time, need to do it in a transaction?
+           	Transaction t = jedis.multi();
+		String hashName = termCounterKey(url);
+		t.del(hashName);
+
+		for (String term: tc.keySet()) {
+			Integer termCount = tc.get(term);
+			t.hset(hashName, term, termCount.toString());
+                        t.sadd(urlSetKey(term), url);
+                }
+		t.exec();
 	}
 
 	/**
